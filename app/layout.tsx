@@ -1,13 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Metadata, Viewport } from "next";
 import { Inter, PT_Sans } from "next/font/google";
-import { cookies } from "next/headers";
+
 
 import TanstackProvider from "@/components/providers/tanstack-query-provider";
 import "@/assets/globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import MY_TOKEN_KEY from "@/lib/get-cookie-name";
-import { apiServer } from "@/lib/api";
 import AppContext from "@/components/contexts/app-context";
 import Script from "next/script";
 
@@ -66,28 +63,11 @@ export const viewport: Viewport = {
   themeColor: "#000000",
 };
 
-async function getMe() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(MY_TOKEN_KEY())?.value;
-  if (!token) return { user: null, errCode: null };
-  try {
-    const res = await apiServer.get("/me", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return { user: res.data.user, errCode: null };
-  } catch (err: any) {
-    return { user: null, errCode: err.status };
-  }
-}
-
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const data = await getMe();
   return (
     <html lang="en">
       <Script
@@ -100,7 +80,7 @@ export default async function RootLayout({
       >
         <Toaster richColors position="bottom-center" />
         <TanstackProvider>
-          <AppContext me={data}>{children}</AppContext>
+          <AppContext>{children}</AppContext>
         </TanstackProvider>
       </body>
     </html>

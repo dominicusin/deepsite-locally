@@ -31,17 +31,7 @@ export function SaveButton({
         prompts,
       });
       if (res.data.ok) {
-        toast.success("Your space is updated! 🎉", {
-          action: {
-            label: "See Space",
-            onClick: () => {
-              window.open(
-                `https://huggingface.co/spaces/${namespace}/${repoId}`,
-                "_blank"
-              );
-            },
-          },
-        });
+        toast.success("Your space is updated! 🎉");
       } else {
         toast.error(res?.data?.error || "Failed to update space");
       }
@@ -55,20 +45,33 @@ export function SaveButton({
     <>
       <Button
         variant="default"
-        className="max-lg:hidden !px-4 relative"
-        onClick={updateSpace}
-      >
-        <MdSave className="size-4" />
-        Save your Project{" "}
-        {loading && <Loading className="ml-2 size-4 animate-spin" />}
-      </Button>
-      <Button
-        variant="default"
         size="sm"
         className="lg:hidden relative"
         onClick={updateSpace}
       >
         Save {loading && <Loading className="ml-2 size-4 animate-spin" />}
+      </Button>
+      <Button
+        variant="default"
+        className="max-lg:hidden !px-4 relative"
+        onClick={() => {
+          let filename = prompt("Nome do arquivo .html:", "index.html");
+          if (!filename) return;
+          if (!filename.endsWith('.html')) filename += '.html';
+          const blob = new Blob([html], { type: "text/html" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          toast.success("HTML baixado com sucesso!");
+        }}
+      >
+        Save to File
+        <MdSave className="ml-2" />
       </Button>
     </>
   );

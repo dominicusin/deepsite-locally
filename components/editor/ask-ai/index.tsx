@@ -7,13 +7,11 @@ import { useLocalStorage, useUpdateEffect } from "react-use";
 import { ArrowUp, ChevronDown, Crosshair } from "lucide-react";
 import { FaStopCircle } from "react-icons/fa";
 
-import ProModal from "@/components/pro-modal";
 import { Button } from "@/components/ui/button";
 import { MODELS } from "@/lib/providers";
 import { HtmlHistory } from "@/types";
 import { InviteFriends } from "@/components/invite-friends";
 import { Settings } from "@/components/editor/ask-ai/settings";
-import { LoginModal } from "@/components/login-modal";
 import { ReImagine } from "@/components/editor/ask-ai/re-imagine";
 import Loading from "@/components/loading";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -52,7 +50,6 @@ export function AskAI({
   const refThink = useRef<HTMLDivElement | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
 
-  const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [hasAsked, setHasAsked] = useState(false);
   const [previousPrompt, setPreviousPrompt] = useState("");
@@ -60,7 +57,6 @@ export function AskAI({
   const [model, setModel] = useLocalStorage("model", MODELS[0].value);
   const [openProvider, setOpenProvider] = useState(false);
   const [providerError, setProviderError] = useState("");
-  const [openProModal, setOpenProModal] = useState(false);
   const [think, setThink] = useState<string | undefined>(undefined);
   const [openThink, setOpenThink] = useState(false);
   const [isThinking, setIsThinking] = useState(true);
@@ -88,6 +84,9 @@ export function AskAI({
         const selectedElementHtml = selectedElement
           ? selectedElement.outerHTML
           : "";
+        const apiKey = localStorage.getItem("openai_api_key");
+        const baseUrl = localStorage.getItem("openai_base_url");
+        const customModel = localStorage.getItem("openai_model");
         const request = await fetch("/api/ask-ai", {
           method: "PUT",
           body: JSON.stringify({
@@ -97,6 +96,9 @@ export function AskAI({
             model,
             html,
             selectedElementHtml,
+            apiKey,
+            baseUrl,
+            customModel,
           }),
           headers: {
             "Content-Type": "application/json",
@@ -107,16 +109,6 @@ export function AskAI({
         if (request && request.body) {
           const res = await request.json();
           if (!request.ok) {
-            if (res.openLogin) {
-              setOpen(true);
-            } else if (res.openSelectProvider) {
-              setOpenProvider(true);
-              setProviderError(res.message);
-            } else if (res.openProModal) {
-              setOpenProModal(true);
-            } else {
-              toast.error(res.message);
-            }
             setisAiWorking(false);
             return;
           }
@@ -129,6 +121,7 @@ export function AskAI({
           if (audio.current) audio.current.play();
         }
       } else {
+        const apiKey = localStorage.getItem("openai_api_key");
         const request = await fetch("/api/ask-ai", {
           method: "POST",
           body: JSON.stringify({
@@ -137,6 +130,7 @@ export function AskAI({
             model,
             html: isSameHtml ? "" : html,
             redesignMarkdown,
+            apiKey,
           }),
           headers: {
             "Content-Type": "application/json",
@@ -159,16 +153,6 @@ export function AskAI({
                 contentResponse.trim().endsWith("}");
               const jsonResponse = isJson ? JSON.parse(contentResponse) : null;
               if (jsonResponse && !jsonResponse.ok) {
-                if (jsonResponse.openLogin) {
-                  setOpen(true);
-                } else if (jsonResponse.openSelectProvider) {
-                  setOpenProvider(true);
-                  setProviderError(jsonResponse.message);
-                } else if (jsonResponse.openProModal) {
-                  setOpenProModal(true);
-                } else {
-                  toast.error(jsonResponse.message);
-                }
                 setisAiWorking(false);
                 return;
               }
@@ -251,9 +235,6 @@ export function AskAI({
     } catch (error: any) {
       setisAiWorking(false);
       toast.error(error.message);
-      if (error.openLogin) {
-        setOpen(true);
-      }
     }
   };
 
@@ -428,12 +409,6 @@ export function AskAI({
             </Button>
           </div>
         </div>
-        <LoginModal open={open} onClose={() => setOpen(false)} html={html} />
-        <ProModal
-          html={html}
-          open={openProModal}
-          onClose={() => setOpenProModal(false)}
-        />
         {!isSameHtml && (
           <div className="absolute top-0 right-0 -translate-y-[calc(100%+8px)] select-none text-xs text-neutral-400 flex items-center justify-center gap-2 bg-neutral-800 border border-neutral-700 rounded-md p-1 pr-2.5">
             <label

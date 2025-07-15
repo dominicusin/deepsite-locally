@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -13,7 +14,7 @@ import {
   useUpdateEffect,
 } from "react-use";
 import classNames from "classnames";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { Header } from "@/components/editor/header";
 import { Footer } from "@/components/editor/footer";
@@ -21,7 +22,6 @@ import { defaultHTML } from "@/lib/consts";
 import { Preview } from "@/components/editor/preview";
 import { useEditor } from "@/hooks/useEditor";
 import { AskAI } from "@/components/editor/ask-ai";
-import { DeployButton } from "./deploy-button";
 import { Project } from "@/types";
 import { SaveButton } from "./save-button";
 import { LoadProject } from "../my-projects/load-project";
@@ -33,16 +33,13 @@ export const AppEditor = ({ project }: { project?: Project | null }) => {
   const { html, setHtml, htmlHistory, setHtmlHistory, prompts, setPrompts } =
     useEditor(project?.html ?? (htmlStorage as string) ?? defaultHTML);
   // get query params from URL
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const deploy = searchParams.get("deploy") === "true";
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const preview = useRef<HTMLDivElement>(null);
   const editor = useRef<HTMLDivElement>(null);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const resizer = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const monacoRef = useRef<any>(null);
 
   const [currentTab, setCurrentTab] = useState("chat");
@@ -114,20 +111,7 @@ export const AppEditor = ({ project }: { project?: Project | null }) => {
   };
 
   useMount(() => {
-    if (deploy && project?._id) {
-      toast.success("Your project is deployed! 🎉", {
-        action: {
-          label: "See Project",
-          onClick: () => {
-            window.open(
-              `https://huggingface.co/spaces/${project?.space_id}`,
-              "_blank"
-            );
-          },
-        },
-      });
-      router.replace(`/projects/${project?.space_id}`);
-    }
+    
     if (htmlStorage) {
       removeHtmlStorage();
       toast.warning("Previous HTML content restored from local storage.");
@@ -180,14 +164,16 @@ export const AppEditor = ({ project }: { project?: Project | null }) => {
       <Header tab={currentTab} onNewTab={setCurrentTab}>
         <LoadProject
           onSuccess={(project: Project) => {
-            router.push(`/projects/${project.space_id}`);
+            if (project.space_id && project.space_id !== "local") {
+              router.push(`/projects/${project.space_id}`);
+            } else {
+              setHtml(project.html);
+              setPrompts(project.prompts || []);
+              toast.success("Projeto HTML carregado.");
+            }
           }}
         />
-        {project?._id ? (
-          <SaveButton html={html} prompts={prompts} />
-        ) : (
-          <DeployButton html={html} prompts={prompts} />
-        )}
+        <SaveButton html={html} prompts={prompts} />
       </Header>
       <main className="bg-neutral-950 flex-1 max-lg:flex-col flex w-full max-lg:h-[calc(100%-82px)] relative">
         {currentTab === "chat" && (

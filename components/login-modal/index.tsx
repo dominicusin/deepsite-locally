@@ -1,15 +1,11 @@
-import { useLocalStorage } from "react-use";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { useUser } from "@/hooks/useUser";
-import { isTheSameHtml } from "@/lib/compare-html-diff";
 
 export const LoginModal = ({
   open,
-  html,
   onClose,
-  title = "Log In to use DeepSite for free",
-  description = "Log In through your Hugging Face account to continue using DeepSite and increase your monthly free limit.",
+  title = "Login is not available",
+  description = "This feature is currently disabled as the application no longer relies on Hugging Face authentication.",
 }: {
   open: boolean;
   html?: string;
@@ -17,15 +13,6 @@ export const LoginModal = ({
   title?: string;
   description?: string;
 }) => {
-  const { openLoginWindow } = useUser();
-  const [, setStorage] = useLocalStorage("html_content");
-  const handleClick = async () => {
-    if (html && !isTheSameHtml(html)) {
-      setStorage(html);
-    }
-    openLoginWindow();
-    onClose(false);
-  };
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg lg:!p-8 !rounded-3xl !bg-white !border-neutral-100">
@@ -50,9 +37,9 @@ export const LoginModal = ({
             variant="black"
             size="lg"
             className="w-full !text-base !h-11 mt-8"
-            onClick={handleClick}
+            onClick={() => onClose(false)}
           >
-            Log In to Continue
+            Close
           </Button>
         </main>
       </DialogContent>

@@ -6,10 +6,7 @@ import Link from "next/link";
 import { useMount, useUnmount } from "react-use";
 import classNames from "classnames";
 
-import { Button } from "@/components/ui/button";
 import Logo from "@/assets/logo.svg";
-import { useUser } from "@/hooks/useUser";
-import { UserMenu } from "@/components/user-menu";
 
 const navigationLinks = [
   {
@@ -31,7 +28,6 @@ const navigationLinks = [
 ];
 
 export default function Navigation() {
-  const { openLoginWindow, user } = useUser();
   const [hash, setHash] = useState("");
 
   const selectorRef = useRef<HTMLDivElement>(null);
@@ -138,18 +134,6 @@ export default function Navigation() {
             <div className="size-1 bg-white rounded-full" />
           </div>
         </ul>
-        <div className="flex items-center justify-end gap-2">
-          {user ? (
-            <UserMenu className="!pl-3 !pr-4 !py-2 !h-auto !rounded-lg" />
-          ) : (
-            <>
-              <Button variant="link" size={"sm"} onClick={openLoginWindow}>
-                Log In
-              </Button>
-              <Button size={"sm"}>Sign Up</Button>
-            </>
-          )}
-        </div>
       </nav>
     </div>
   );

@@ -1,6 +1,5 @@
-import classNames from "classnames";
 import { PiGearSixFill } from "react-icons/pi";
-import { RiCheckboxCircleFill } from "react-icons/ri";
+import { useState, useEffect } from "react";
 
 import {
   Popover,
@@ -9,18 +8,10 @@ import {
 } from "@/components/ui/popover";
 import { PROVIDERS, MODELS } from "@/lib/providers";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useMemo } from "react";
 import { useUpdateEffect } from "react-use";
-import Image from "next/image";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 export function Settings({
   open,
@@ -28,9 +19,7 @@ export function Settings({
   provider,
   model,
   error,
-  isFollowUp = false,
   onChange,
-  onModelChange,
 }: {
   open: boolean;
   provider: string;
@@ -41,6 +30,16 @@ export function Settings({
   onChange: (provider: string) => void;
   onModelChange: (model: string) => void;
 }) {
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [customModel, setCustomModel] = useState("");
+
+  useEffect(() => {
+    setApiKey(localStorage.getItem("openai_api_key") || "");
+    setBaseUrl(localStorage.getItem("openai_base_url") || "");
+    setCustomModel(localStorage.getItem("openai_model") || "");
+  }, [open]);
+
   const modelAvailableProviders = useMemo(() => {
     const availableProviders = MODELS.find(
       (m: { value: string }) => m.value === model
@@ -56,6 +55,14 @@ export function Settings({
       onChange("auto");
     }
   }, [model, provider]);
+
+  const handleSaveSettings = () => {
+    localStorage.setItem("openai_api_key", apiKey);
+    localStorage.setItem("openai_base_url", baseUrl);
+    localStorage.setItem("openai_model", customModel);
+    toast.success("Settings saved!");
+    onClose(false);
+  };
 
   return (
     <div className="">
@@ -81,121 +88,52 @@ export function Settings({
             )}
             <label className="block">
               <p className="text-neutral-300 text-sm mb-2.5">
-                Choose a DeepSeek model
+                API Key
               </p>
-              <Select defaultValue={model} onValueChange={onModelChange}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a DeepSeek model" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>DeepSeek models</SelectLabel>
-                    {MODELS.map(
-                      ({
-                        value,
-                        label,
-                        isNew = false,
-                        isThinker = false,
-                      }: {
-                        value: string;
-                        label: string;
-                        isNew?: boolean;
-                        isThinker?: boolean;
-                      }) => (
-                        <SelectItem
-                          key={value}
-                          value={value}
-                          className=""
-                          disabled={isThinker && isFollowUp}
-                        >
-                          {label}
-                          {isNew && (
-                            <span className="text-xs bg-gradient-to-br from-sky-400 to-sky-600 text-white rounded-full px-1.5 py-0.5">
-                              New
-                            </span>
-                          )}
-                        </SelectItem>
-                      )
-                    )}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+              <Input
+                type="password"
+                placeholder="Enter your OpenAI API key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="!bg-neutral-800 !border-neutral-700 !text-neutral-200"
+              />
             </label>
-            {isFollowUp && (
-              <div className="bg-amber-500/10 border-amber-500/10 p-3 text-xs text-amber-500 border rounded-lg">
-                Note: You can&apos;t use a Thinker model for follow-up requests.
-                We automatically switch to the default model for you.
-              </div>
-            )}
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-neutral-300 text-sm mb-1.5">
-                    Use auto-provider
-                  </p>
-                  <p className="text-xs text-neutral-400/70">
-                    We&apos;ll automatically select the best provider for you
-                    based on your prompt.
-                  </p>
-                </div>
-                <div
-                  className={classNames(
-                    "bg-neutral-700 rounded-full min-w-10 w-10 h-6 flex items-center justify-between p-1 cursor-pointer transition-all duration-200",
-                    {
-                      "!bg-sky-500": provider === "auto",
-                    }
-                  )}
-                  onClick={() => {
-                    const foundModel = MODELS.find(
-                      (m: { value: string }) => m.value === model
-                    );
-                    if (provider === "auto" && foundModel?.autoProvider) {
-                      onChange(foundModel.autoProvider);
-                    } else {
-                      onChange("auto");
-                    }
-                  }}
-                >
-                  <div
-                    className={classNames(
-                      "w-4 h-4 rounded-full shadow-md transition-all duration-200 bg-neutral-200",
-                      {
-                        "translate-x-4": provider === "auto",
-                      }
-                    )}
-                  />
-                </div>
-              </div>
-              <label className="block">
-                <p className="text-neutral-300 text-sm mb-2">
-                  Inference Provider
-                </p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {modelAvailableProviders.map((id: string) => (
-                    <Button
-                      key={id}
-                      variant={id === provider ? "default" : "secondary"}
-                      size="sm"
-                      onClick={() => {
-                        onChange(id);
-                      }}
-                    >
-                      <Image
-                        src={`/providers/${id}.svg`}
-                        alt={PROVIDERS[id as keyof typeof PROVIDERS].name}
-                        className="size-5 mr-2"
-                        width={20}
-                        height={20}
-                      />
-                      {PROVIDERS[id as keyof typeof PROVIDERS].name}
-                      {id === provider && (
-                        <RiCheckboxCircleFill className="ml-2 size-4 text-blue-500" />
-                      )}
-                    </Button>
-                  ))}
-                </div>
-              </label>
+            <label className="block">
+              <p className="text-neutral-300 text-sm mb-2.5">
+                Base URL (optional)
+              </p>
+              <Input
+                type="text"
+                placeholder="e.g., https://api.openai.com/v1"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                className="!bg-neutral-800 !border-neutral-700 !text-neutral-200"
+              />
+            </label>
+            <label className="block">
+              <p className="text-neutral-300 text-sm mb-2.5">
+                Custom Model
+              </p>
+              <Input
+                type="text"
+                placeholder="e.g., gpt-4o-mini"
+                value={customModel || "gpt-4.1"}
+                onChange={(e) => setCustomModel(e.target.value)}
+                className="!bg-neutral-800 !border-neutral-700 !text-neutral-200"
+              />
+            </label>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSaveSettings}
+              className="mt-2 w-full"
+            >
+              Save Settings
+            </Button>
+            <div className="bg-amber-500/10 border-amber-500/10 p-3 text-xs text-amber-500 border rounded-lg">
+              Accepts any OpenAI-compatible provider. Enter the corresponding API key and base URL (e.g., OpenRouter, DeepSeek, etc.).
             </div>
+
           </main>
         </PopoverContent>
       </Popover>

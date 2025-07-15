@@ -1,6 +1,6 @@
 import classNames from "classnames";
 import { FaMobileAlt } from "react-icons/fa";
-import { HelpCircle, RefreshCcw, SparkleIcon } from "lucide-react";
+import { RefreshCcw } from "lucide-react";
 import { FaLaptopCode } from "react-icons/fa6";
 import { HtmlHistory } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -74,24 +74,20 @@ export function Footer({
         )}
       </div>
       <div className="flex justify-end items-center gap-2.5">
-        <a
-          href="https://huggingface.co/spaces/victor/deepsite-gallery"
-          target="_blank"
-        >
-          <Button size="sm" variant="ghost">
-            <SparkleIcon className="size-3.5" />
-            <span className="max-lg:hidden">DeepSite Gallery</span>
-          </Button>
-        </a>
-        <a
-          target="_blank"
-          href="https://huggingface.co/spaces/enzostvs/deepsite/discussions/157"
-        >
-          <Button size="sm" variant="outline">
-            <HelpCircle className="size-3.5" />
-            <span className="max-lg:hidden">Help</span>
-          </Button>
-        </a>
+
+          <style>{`
+            @keyframes blink-star {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.2; }
+            }
+          `}</style>
+          <span className="max-lg:hidden"><a
+            href="https://github.com/MartinsMessias/deepsite-locally"
+            target="_blank"
+            className="text-xs lg:text-sm font-medium py-2 px-3 lg:px-4 rounded-lg flex items-center  transition-all duration-100 cursor-pointer"
+          >
+            <span style={{ animation: 'blink-star 2s infinite' }}>⭐</span> <span>Give a Star on GitHub</span>
+          </a></span>
         <Button size="sm" variant="outline" onClick={handleRefreshIframe}>
           <RefreshCcw className="size-3.5" />
           <span className="max-lg:hidden">Refresh Preview</span>

@@ -1,28 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { InferenceClient } from "@huggingface/inference";
+import OpenAI from "openai";
 
-import { MODELS, PROVIDERS } from "@/lib/providers";
+import { MODELS } from "@/lib/providers";
 import {
   DIVIDER,
   FOLLOW_UP_SYSTEM_PROMPT,
   INITIAL_SYSTEM_PROMPT,
-  MAX_REQUESTS_PER_IP,
   REPLACE_END,
   SEARCH_START,
 } from "@/lib/prompts";
-import MY_TOKEN_KEY from "@/lib/get-cookie-name";
-
-const ipAddresses = new Map();
 
 export async function POST(request: NextRequest) {
-  const authHeaders = await headers();
-  const userToken = request.cookies.get(MY_TOKEN_KEY())?.value;
-
   const body = await request.json();
-  const { prompt, provider, model, redesignMarkdown, html } = body;
+  const { prompt, model, redesignMarkdown, html, apiKey, customModel } = body;
+
+  const openai = new OpenAI({
+    apiKey: apiKey || process.env.OPENAI_API_KEY,
+  });
 
   if (!model || (!prompt && !redesignMarkdown)) {
     return NextResponse.json(
@@ -40,56 +36,6 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-
-  if (!selectedModel.providers.includes(provider) && provider !== "auto") {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: `The selected model does not support the ${provider} provider.`,
-        openSelectProvider: true,
-      },
-      { status: 400 }
-    );
-  }
-
-  let token = userToken;
-  let billTo: string | null = null;
-
-  /**
-   * Handle local usage token, this bypass the need for a user token
-   * and allows local testing without authentication.
-   * This is useful for development and testing purposes.
-   */
-  if (process.env.HF_TOKEN && process.env.HF_TOKEN.length > 0) {
-    token = process.env.HF_TOKEN;
-  }
-
-  const ip = authHeaders.get("x-forwarded-for")?.includes(",")
-    ? authHeaders.get("x-forwarded-for")?.split(",")[1].trim()
-    : authHeaders.get("x-forwarded-for");
-
-  if (!token) {
-    ipAddresses.set(ip, (ipAddresses.get(ip) || 0) + 1);
-    if (ipAddresses.get(ip) > MAX_REQUESTS_PER_IP) {
-      return NextResponse.json(
-        {
-          ok: false,
-          openLogin: true,
-          message: "Log In to continue using the service",
-        },
-        { status: 429 }
-      );
-    }
-
-    token = process.env.DEFAULT_HF_TOKEN as string;
-    billTo = "huggingface";
-  }
-
-  const DEFAULT_PROVIDER = PROVIDERS.novita;
-  const selectedProvider =
-    provider === "auto"
-      ? PROVIDERS[selectedModel.autoProvider as keyof typeof PROVIDERS]
-      : PROVIDERS[provider as keyof typeof PROVIDERS] ?? DEFAULT_PROVIDER;
 
   try {
     // Create a stream response
@@ -109,96 +55,44 @@ export async function POST(request: NextRequest) {
     (async () => {
       let completeResponse = "";
       try {
-        const client = new InferenceClient(token);
-        const chatCompletion = client.chatCompletionStream(
-          {
-            model: selectedModel.value,
-            provider: selectedProvider.id as any,
-            messages: [
-              {
-                role: "system",
-                content: INITIAL_SYSTEM_PROMPT,
-              },
-              {
-                role: "user",
-                content: redesignMarkdown
-                  ? `Here is my current design as a markdown:\n\n${redesignMarkdown}\n\nNow, please create a new design based on this markdown.`
-                  : html
-                  ? `Here is my current HTML code:\n\n\`\`\`html\n${html}\n\`\`\`\n\nNow, please create a new design based on this HTML.`
-                  : prompt,
-              },
-            ],
-            max_tokens: selectedProvider.max_tokens,
-          },
-          billTo ? { billTo } : {}
-        );
+        const chatCompletion = await openai.chat.completions.create({
+          model: customModel || selectedModel.value,
+          messages: [
+            {
+              role: "system",
+              content: INITIAL_SYSTEM_PROMPT,
+            },
+            {
+              role: "user",
+              content: redesignMarkdown
+                ? `Here is my current design as a markdown:\n\n${redesignMarkdown}\n\nNow, please create a new design based on this markdown.`
+                : html
+                ? `Here is my current HTML code:\n\n\`\`\`html\n${html}\n\`\`\`\n\nNow, please create a new design based on this HTML.`
+                : prompt,
+            },
+          ],
+          stream: true,
+        });
 
-        while (true) {
-          const { done, value } = await chatCompletion.next();
-          if (done) {
+        for await (const chunk of chatCompletion) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          await writer.write(encoder.encode(content));
+          completeResponse += content;
+          if (completeResponse.includes("</html>")) {
             break;
-          }
-
-          const chunk = value.choices[0]?.delta?.content;
-          if (chunk) {
-            let newChunk = chunk;
-            if (!selectedModel?.isThinker) {
-              if (provider !== "sambanova") {
-                await writer.write(encoder.encode(chunk));
-                completeResponse += chunk;
-
-                if (completeResponse.includes("</html>")) {
-                  break;
-                }
-              } else {
-                if (chunk.includes("</html>")) {
-                  newChunk = newChunk.replace(/<\/html>[\s\S]*/, "</html>");
-                }
-                completeResponse += newChunk;
-                await writer.write(encoder.encode(newChunk));
-                if (newChunk.includes("</html>")) {
-                  break;
-                }
-              }
-            } else {
-              const lastThinkTagIndex =
-                completeResponse.lastIndexOf("</think>");
-              completeResponse += newChunk;
-              await writer.write(encoder.encode(newChunk));
-              if (lastThinkTagIndex !== -1) {
-                const afterLastThinkTag = completeResponse.slice(
-                  lastThinkTagIndex + "</think>".length
-                );
-                if (afterLastThinkTag.includes("</html>")) {
-                  break;
-                }
-              }
-            }
           }
         }
       } catch (error: any) {
-        if (error.message?.includes("exceeded your monthly included credits")) {
-          await writer.write(
-            encoder.encode(
-              JSON.stringify({
-                ok: false,
-                openProModal: true,
-                message: error.message,
-              })
-            )
-          );
-        } else {
-          await writer.write(
-            encoder.encode(
-              JSON.stringify({
-                ok: false,
-                message:
-                  error.message ||
-                  "An error occurred while processing your request.",
-              })
-            )
-          );
-        }
+        await writer.write(
+          encoder.encode(
+            JSON.stringify({
+              ok: false,
+              message:
+                error.message ||
+                "An error occurred while processing your request.",
+            })
+          )
+        );
       } finally {
         await writer?.close();
       }
@@ -209,7 +103,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
-        openSelectProvider: true,
         message:
           error?.message || "An error occurred while processing your request.",
       },
@@ -219,11 +112,13 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const authHeaders = await headers();
-  const userToken = request.cookies.get(MY_TOKEN_KEY())?.value;
-
   const body = await request.json();
-  const { prompt, html, previousPrompt, provider, selectedElementHtml } = body;
+  const { prompt, html, previousPrompt, selectedElementHtml, apiKey, model, baseUrl, customModel } = body;
+
+  const openai = new OpenAI({
+    apiKey: apiKey || process.env.OPENAI_API_KEY,
+    baseURL: baseUrl || process.env.OPENAI_BASE_URL,
+  });
 
   if (!prompt || !html) {
     return NextResponse.json(
@@ -232,87 +127,43 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  const selectedModel = MODELS[0];
-
-  let token = userToken;
-  let billTo: string | null = null;
-
-  /**
-   * Handle local usage token, this bypass the need for a user token
-   * and allows local testing without authentication.
-   * This is useful for development and testing purposes.
-   */
-  if (process.env.HF_TOKEN && process.env.HF_TOKEN.length > 0) {
-    token = process.env.HF_TOKEN;
+  const selectedModel = MODELS.find(
+    (m) => m.value === model || m.label === model
+  );
+  if (!selectedModel) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid model selected" },
+      { status: 400 }
+    );
   }
-
-  const ip = authHeaders.get("x-forwarded-for")?.includes(",")
-    ? authHeaders.get("x-forwarded-for")?.split(",")[1].trim()
-    : authHeaders.get("x-forwarded-for");
-
-  if (!token) {
-    ipAddresses.set(ip, (ipAddresses.get(ip) || 0) + 1);
-    if (ipAddresses.get(ip) > MAX_REQUESTS_PER_IP) {
-      return NextResponse.json(
-        {
-          ok: false,
-          openLogin: true,
-          message: "Log In to continue using the service",
-        },
-        { status: 429 }
-      );
-    }
-
-    token = process.env.DEFAULT_HF_TOKEN as string;
-    billTo = "huggingface";
-  }
-
-  const client = new InferenceClient(token);
-
-  const DEFAULT_PROVIDER = PROVIDERS.novita;
-  const selectedProvider =
-    provider === "auto"
-      ? PROVIDERS[selectedModel.autoProvider as keyof typeof PROVIDERS]
-      : PROVIDERS[provider as keyof typeof PROVIDERS] ?? DEFAULT_PROVIDER;
 
   try {
-    const response = await client.chatCompletion(
-      {
-        model: selectedModel.value,
-        provider: selectedProvider.id as any,
-        messages: [
-          {
-            role: "system",
-            content: FOLLOW_UP_SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: previousPrompt
-              ? previousPrompt
-              : "You are modifying the HTML file based on the user's request.",
-          },
-          {
-            role: "assistant",
-
-            content: `The current code is: \n\`\`\`html\n${html}\n\`\`\` ${
-              selectedElementHtml
-                ? `\n\nYou have to update ONLY the following element, NOTHING ELSE: \n\n\`\`\`html\n${selectedElementHtml}\n\`\`\``
-                : ""
-            }`,
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        ...(selectedProvider.id !== "sambanova"
-          ? {
-              max_tokens: selectedProvider.max_tokens,
-            }
-          : {}),
-      },
-      billTo ? { billTo } : {}
-    );
+    const response = await openai.chat.completions.create({
+      model: customModel || selectedModel.value,
+      messages: [
+        {
+          role: "system",
+          content: FOLLOW_UP_SYSTEM_PROMPT,
+        },
+        {
+          role: "user",
+          content: previousPrompt
+            ? previousPrompt
+            : "You are modifying the HTML file based on the user's request.",
+        },
+        {
+          role: "assistant",
+          content: `The current code is: \n\`\`\`html\n${html}\n\`\`\` ${selectedElementHtml
+            ? `\n\nYou have to update ONLY the following element, NOTHING ELSE: \n\n\`\`\`html\n${selectedElementHtml}\n\`\`\``
+            : ""}
+          `,
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
 
     const chunk = response.choices[0]?.message?.content;
     if (!chunk) {
@@ -387,20 +238,9 @@ export async function PUT(request: NextRequest) {
       );
     }
   } catch (error: any) {
-    if (error.message?.includes("exceeded your monthly included credits")) {
-      return NextResponse.json(
-        {
-          ok: false,
-          openProModal: true,
-          message: error.message,
-        },
-        { status: 402 }
-      );
-    }
     return NextResponse.json(
       {
         ok: false,
-        openSelectProvider: true,
         message:
           error.message || "An error occurred while processing your request.",
       },

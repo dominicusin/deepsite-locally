@@ -129,7 +129,7 @@ export const Preview = ({
       />
       {!isAiWorking && hoveredElement && selectedElement && (
         <div
-          className="cursor-pointer absolute bg-sky-500/10 border-[2px] border-dashed border-sky-500 rounded-r-lg rounded-b-lg p-3 z-10 pointer-events-none"
+          className="cursor-pointer absolute bg-sky-500/10 border-[2px] border-dashed border-sky-500 p-3 z-10 pointer-events-none"
           style={{
             top:
               selectedElement.getBoundingClientRect().top +
@@ -141,36 +141,97 @@ export const Preview = ({
             height: selectedElement.getBoundingClientRect().height,
           }}
         >
-          <span className="bg-sky-500 rounded-t-md text-sm text-neutral-100 px-2 py-0.5 -translate-y-7 absolute top-0 left-0">
+          <span className="bg-sky-500 text-sm text-neutral-100 px-2 py-0.5 -translate-y-7 absolute top-0 left-0">
             {htmlTagToText(selectedElement.tagName.toLowerCase())}
           </span>
         </div>
       )}
-      <iframe
-        id="preview-iframe"
-        ref={iframeRef}
-        title="output"
-        className={classNames(
-          "w-full select-none transition-all duration-200 bg-black h-full",
-          {
-            "pointer-events-none": isResizing || isAiWorking,
-            "lg:max-w-md lg:mx-auto lg:!rounded-[42px] lg:border-[8px] lg:border-neutral-700 lg:shadow-2xl lg:h-[80dvh] lg:max-h-[996px]":
-              device === "mobile",
-            "lg:border-[8px] lg:border-neutral-700 lg:shadow-2xl lg:rounded-[24px]":
-              currentTab !== "preview" && device === "desktop",
-          }
-        )}
-        srcDoc={html}
-        onLoad={() => {
-          if (iframeRef?.current?.contentWindow?.document?.body) {
-            iframeRef.current.contentWindow.document.body.scrollIntoView({
-              block: isAiWorking ? "end" : "start",
-              inline: "nearest",
-              behavior: isAiWorking ? "instant" : "smooth",
-            });
-          }
-        }}
-      />
+      {device === "mobile" ? (
+        <div
+          style={{
+            width: 320,
+            height: 684,
+            border: "16px solid #222",
+            borderRadius: 40,
+            boxShadow: "0 8px 40px #0008",
+            position: "relative",
+            background: "#111",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 10,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: 60,
+              height: 5,
+              background: "#444",
+              borderRadius: 5,
+              zIndex: 3,
+            }}
+          />
+          <iframe
+            id="preview-iframe"
+            ref={iframeRef}
+            title="output"
+            className={classNames(
+              "w-full h-full select-none transition-all duration-200 bg-black",
+              {
+                "pointer-events-none": isResizing || isAiWorking,
+                "rounded-[32px]": false,
+              }
+            )}
+            style={{
+              border: "none",
+              width: 288,
+              height: 608,
+              borderRadius: 28,
+              marginTop: 24,
+              marginBottom: 24,
+              background: "#000",
+            }}
+            srcDoc={html}
+            onLoad={() => {
+              if (iframeRef?.current?.contentWindow?.document?.body) {
+                iframeRef.current.contentWindow.document.body.scrollIntoView({
+                  block: isAiWorking ? "end" : "start",
+                  inline: "nearest",
+                  behavior: isAiWorking ? "instant" : "smooth",
+                });
+              }
+            }}
+          />
+        </div>
+      ) : (
+        <iframe
+          id="preview-iframe"
+          ref={iframeRef}
+          title="output"
+          className={classNames(
+            "w-full select-none transition-all duration-200 bg-black h-full",
+            {
+              "pointer-events-none": isResizing || isAiWorking,
+              "lg:border-[8px] lg:border-neutral-700 lg:shadow-2xl":
+                currentTab !== "preview" && device === "desktop",
+            }
+          )}
+          srcDoc={html}
+          onLoad={() => {
+            if (iframeRef?.current?.contentWindow?.document?.body) {
+              iframeRef.current.contentWindow.document.body.scrollIntoView({
+                block: isAiWorking ? "end" : "start",
+                inline: "nearest",
+                behavior: isAiWorking ? "instant" : "smooth",
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

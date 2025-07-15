@@ -19,7 +19,7 @@ export default function AppContext({
     errCode: number | null;
   };
 }) {
-  const { loginFromCode, user, logout, loading, errCode } =
+  const { user, logout, loading, errCode } =
     useUser(initialData);
   const pathname = usePathname();
   const router = useRouter();
@@ -45,7 +45,6 @@ export default function AppContext({
 
     if (!message.code) return;
     if (message.type === "user-oauth" && message?.code && !events.code) {
-      loginFromCode(message.code);
     }
   });
 
