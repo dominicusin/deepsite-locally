@@ -1,5 +1,8 @@
 
+
 # DeepSite v2 🚀
+
+> **Note:** If you want to access the previous version of DeepSite, check the `main-v1` branch on this repository.
 
 ![Banner Screenshot](./localconfig.png)
 
