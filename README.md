@@ -1,6 +1,9 @@
 
 
+
 # DeepSite v2 🚀
+
+> **Fork Notice:** This project is a fork of the original [DeepSite by enzostvs on Hugging Face Spaces](https://huggingface.co/spaces/enzostvs/deepsite).
 
 > **Note:** If you want to access the previous version of DeepSite, check the `main-v1` branch on this repository.
 
