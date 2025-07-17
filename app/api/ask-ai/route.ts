@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
 
   const openai = new OpenAI({
     apiKey: apiKey || process.env.OPENAI_API_KEY,
+    baseURL: baseUrl || process.env.OPENAI_BASE_URL,
   });
 
   if (!model || (!prompt && !redesignMarkdown)) {
