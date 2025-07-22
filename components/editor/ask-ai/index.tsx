@@ -54,7 +54,7 @@ export function AskAI({
   const [hasAsked, setHasAsked] = useState(false);
   const [previousPrompt, setPreviousPrompt] = useState("");
   const [provider, setProvider] = useLocalStorage("provider", "auto");
-  const [model, setModel] = useLocalStorage("model", MODELS[0].value);
+    const [model, setModel] = useLocalStorage("model", localStorage.getItem("openai_model") || MODELS[0].value);
   const [openProvider, setOpenProvider] = useState(false);
   const [providerError, setProviderError] = useState("");
   const [think, setThink] = useState<string | undefined>(undefined);
@@ -123,6 +123,7 @@ export function AskAI({
       } else {
         const apiKey = localStorage.getItem("openai_api_key");
         const baseUrl = localStorage.getItem("openai_base_url");
+        const customModel = localStorage.getItem("openai_model");
         const request = await fetch("/api/ask-ai", {
           method: "POST",
           body: JSON.stringify({
@@ -133,6 +134,7 @@ export function AskAI({
             redesignMarkdown,
             apiKey,
             baseUrl,
+            customModel,
           }),
           headers: {
             "Content-Type": "application/json",
@@ -437,9 +439,6 @@ export function AskAI({
                 id="diff-patch-checkbox"
                 checked={isFollowUp}
                 onCheckedChange={(e) => {
-                  if (e === true && !isSameHtml) {
-                    setModel(MODELS[0].value);
-                  }
                   setIsFollowUp(e === true);
                 }}
               />

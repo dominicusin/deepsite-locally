@@ -100,7 +100,7 @@ export function Settings({
             </label>
             <label className="block">
               <p className="text-neutral-300 text-sm mb-2.5">
-                Base URL (optional)
+                Base URL
               </p>
               <Input
                 type="text"
