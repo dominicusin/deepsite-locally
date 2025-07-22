@@ -54,7 +54,12 @@ export function AskAI({
   const [hasAsked, setHasAsked] = useState(false);
   const [previousPrompt, setPreviousPrompt] = useState("");
   const [provider, setProvider] = useLocalStorage("provider", "auto");
-    const [model, setModel] = useLocalStorage("model", localStorage.getItem("openai_model") || MODELS[0].value);
+    const [model, setModel] = useLocalStorage(
+      "model",
+      typeof window !== "undefined"
+        ? localStorage.getItem("openai_model") || MODELS[0].value
+        : MODELS[0].value
+    );
   const [openProvider, setOpenProvider] = useState(false);
   const [providerError, setProviderError] = useState("");
   const [think, setThink] = useState<string | undefined>(undefined);
@@ -150,6 +155,7 @@ export function AskAI({
               errorMsg = errorJson?.error || errorJson?.message || errorMsg;
             } catch (e) {
               // fallback: try to read as text
+              console.error("Error parsing AI response:", e);
               try {
                 errorMsg = await request.text();
               } catch {}
