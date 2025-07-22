@@ -122,6 +122,7 @@ export function AskAI({
         }
       } else {
         const apiKey = localStorage.getItem("openai_api_key");
+        const baseUrl = localStorage.getItem("openai_base_url");
         const request = await fetch("/api/ask-ai", {
           method: "POST",
           body: JSON.stringify({
@@ -131,6 +132,7 @@ export function AskAI({
             html: isSameHtml ? "" : html,
             redesignMarkdown,
             apiKey,
+            baseUrl,
           }),
           headers: {
             "Content-Type": "application/json",
@@ -139,6 +141,21 @@ export function AskAI({
           signal: abortController.signal,
         });
         if (request && request.body) {
+          if (!request.ok) {
+            let errorMsg = "AI request failed.";
+            try {
+              const errorJson = await request.json();
+              errorMsg = errorJson?.error || errorJson?.message || errorMsg;
+            } catch (e) {
+              // fallback: try to read as text
+              try {
+                errorMsg = await request.text();
+              } catch {}
+            }
+            toast.error(errorMsg);
+            setisAiWorking(false);
+            return;
+          }
           const reader = request.body.getReader();
           const decoder = new TextDecoder("utf-8");
           const selectedModel = MODELS.find(
@@ -153,6 +170,7 @@ export function AskAI({
                 contentResponse.trim().endsWith("}");
               const jsonResponse = isJson ? JSON.parse(contentResponse) : null;
               if (jsonResponse && !jsonResponse.ok) {
+                toast.error(jsonResponse?.error || jsonResponse?.message || "AI request failed.");
                 setisAiWorking(false);
                 return;
               }
