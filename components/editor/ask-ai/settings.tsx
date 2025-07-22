@@ -92,7 +92,7 @@ export function Settings({
               </p>
               <Input
                 type="password"
-                placeholder="Enter your OpenAI API key"
+                placeholder="Enter your api key"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="!bg-neutral-800 !border-neutral-700 !text-neutral-200"
@@ -104,7 +104,7 @@ export function Settings({
               </p>
               <Input
                 type="text"
-                placeholder="e.g., https://api.openai.com/v1"
+                placeholder="e.g., http://127.0.0.1:11434/v1"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 className="!bg-neutral-800 !border-neutral-700 !text-neutral-200"
@@ -116,8 +116,8 @@ export function Settings({
               </p>
               <Input
                 type="text"
-                placeholder="e.g., gpt-4o-mini"
-                value={customModel || "gpt-4.1"}
+                placeholder="e.g., gemma3:1b"
+                value={customModel || "gemma3:1b"}
                 onChange={(e) => setCustomModel(e.target.value)}
                 className="!bg-neutral-800 !border-neutral-700 !text-neutral-200"
               />
