@@ -54,12 +54,6 @@ export function AskAI({
   const [hasAsked, setHasAsked] = useState(false);
   const [previousPrompt, setPreviousPrompt] = useState("");
   const [provider, setProvider] = useLocalStorage("provider", "auto");
-    const [model, setModel] = useLocalStorage(
-      "model",
-      typeof window !== "undefined"
-        ? localStorage.getItem("openai_model") || MODELS[0].value
-        : MODELS[0].value
-    );
   const [openProvider, setOpenProvider] = useState(false);
   const [providerError, setProviderError] = useState("");
   const [think, setThink] = useState<string | undefined>(undefined);
@@ -67,6 +61,11 @@ export function AskAI({
   const [isThinking, setIsThinking] = useState(true);
   const [controller, setController] = useState<AbortController | null>(null);
   const [isFollowUp, setIsFollowUp] = useState(true);
+
+  const getModel = () =>
+  typeof window !== "undefined"
+    ? localStorage.getItem("openai_model") || "gpt-4o-mini"
+    : "gpt-4o-mini";
 
   const callAi = async (redesignMarkdown?: string) => {
     if (isAiWorking) return;
@@ -91,7 +90,7 @@ export function AskAI({
           : "";
         const apiKey = localStorage.getItem("openai_api_key");
         const baseUrl = localStorage.getItem("openai_base_url");
-        const customModel = localStorage.getItem("openai_model");
+        const model = getModel();
         const request = await fetch("/api/ask-ai", {
           method: "PUT",
           body: JSON.stringify({
@@ -103,7 +102,6 @@ export function AskAI({
             selectedElementHtml,
             apiKey,
             baseUrl,
-            customModel,
           }),
           headers: {
             "Content-Type": "application/json",
@@ -128,7 +126,7 @@ export function AskAI({
       } else {
         const apiKey = localStorage.getItem("openai_api_key");
         const baseUrl = localStorage.getItem("openai_base_url");
-        const customModel = localStorage.getItem("openai_model");
+        const model = getModel();
         const request = await fetch("/api/ask-ai", {
           method: "POST",
           body: JSON.stringify({
@@ -139,7 +137,6 @@ export function AskAI({
             redesignMarkdown,
             apiKey,
             baseUrl,
-            customModel,
           }),
           headers: {
             "Content-Type": "application/json",
@@ -188,7 +185,6 @@ export function AskAI({
               setPrompt("");
               setisAiWorking(false);
               setHasAsked(true);
-              setModel(MODELS[0].value);
               if (audio.current) audio.current.play();
 
               // Now we have the complete HTML including </html>, so set it to be sure
@@ -418,9 +414,11 @@ export function AskAI({
           <div className="flex items-center justify-end gap-2">
             <Settings
               provider={provider as string}
-              model={model as string}
+              model={getModel()}
               onChange={setProvider}
-              onModelChange={setModel}
+              onModelChange={(newModel: string) => {
+                localStorage.setItem("openai_model", newModel);
+              }}
               open={openProvider}
               error={providerError}
               isFollowUp={!isSameHtml && isFollowUp}
