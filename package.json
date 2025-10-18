@@ -36,7 +36,7 @@
     "date-fns": "^4.1.0",
     "eslint": "^9.31.0",
     "eslint-config-next": "^15.4.3",
-    "lucide-react": "^0.513.0",
+    "lucide-react": "^0.544.0",
     "monaco-editor": "^0.52.2",
     "mongoose": "^8.15.1",
     "next": "15.3.3",
