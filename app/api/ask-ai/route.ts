@@ -3,7 +3,6 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-import { MODELS } from "@/lib/providers";
 import {
   DIVIDER,
   FOLLOW_UP_SYSTEM_PROMPT,
@@ -14,7 +13,7 @@ import {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { prompt, model, redesignMarkdown, html, apiKey, customModel, baseUrl } = body;
+  const { prompt, model, redesignMarkdown, html, apiKey, baseUrl } = body;
 
   const openai = new OpenAI({
     apiKey: apiKey || process.env.OPENAI_API_KEY || "",
@@ -28,23 +27,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const selectedModel = MODELS.find(
-    (m) => m.value === model || m.label === model
-  );
-  if (!selectedModel) {
-    return NextResponse.json(
-      { ok: false, error: "Invalid model selected" },
-      { status: 400 }
-    );
-  }
-
   try {
-    // Create a stream response
     const encoder = new TextEncoder();
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
 
-    // Start the response
     const response = new NextResponse(stream.readable, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
@@ -57,12 +44,10 @@ export async function POST(request: NextRequest) {
       let completeResponse = "";
       try {
         const chatCompletion = await openai.chat.completions.create({
-          model: customModel || selectedModel.value,
+          model,
+          stream: true,
           messages: [
-            {
-              role: "system",
-              content: INITIAL_SYSTEM_PROMPT,
-            },
+            { role: "system", content: INITIAL_SYSTEM_PROMPT },
             {
               role: "user",
               content: redesignMarkdown
@@ -72,16 +57,19 @@ export async function POST(request: NextRequest) {
                 : prompt,
             },
           ],
-          stream: true,
         });
 
         for await (const chunk of chatCompletion) {
           const content = chunk.choices[0]?.delta?.content || "";
-          await writer.write(encoder.encode(content));
+          if (!content) continue;
           completeResponse += content;
-          if (completeResponse.includes("</html>")) {
-            break;
-          }
+          await writer.write(encoder.encode(content));
+        }
+
+        if (!completeResponse.trim()) {
+          await writer.write(
+            encoder.encode("\n[ERROR] Model returned empty response.\n")
+          );
         }
       } catch (error: any) {
         await writer.write(
@@ -95,7 +83,7 @@ export async function POST(request: NextRequest) {
           )
         );
       } finally {
-        await writer?.close();
+        await writer.close();
       }
     })();
 
@@ -114,10 +102,18 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   const body = await request.json();
-  const { prompt, html, previousPrompt, selectedElementHtml, apiKey, model, baseUrl, customModel } = body;
+  const {
+    prompt,
+    html,
+    previousPrompt,
+    selectedElementHtml,
+    apiKey,
+    model,
+    baseUrl,
+  } = body;
 
   const openai = new OpenAI({
-    apiKey: apiKey || process.env.OPENAI_API_KEY,
+    apiKey: apiKey || process.env.OPENAI_API_KEY || "",
     baseURL: baseUrl || process.env.OPENAI_BASE_URL,
   });
 
@@ -128,116 +124,95 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  const selectedModel = MODELS.find(
-    (m) => m.value === model || m.label === model
-  );
-  if (!selectedModel) {
-    return NextResponse.json(
-      { ok: false, error: "Invalid model selected" },
-      { status: 400 }
-    );
-  }
-
   try {
     const response = await openai.chat.completions.create({
-      model: customModel || selectedModel.value,
+      model,
       messages: [
-        {
-          role: "system",
-          content: FOLLOW_UP_SYSTEM_PROMPT,
-        },
+        { role: "system", content: FOLLOW_UP_SYSTEM_PROMPT },
         {
           role: "user",
-          content: previousPrompt
-            ? previousPrompt
-            : "You are modifying the HTML file based on the user's request.",
+          content:
+            previousPrompt ||
+            "You are modifying the HTML file based on the user's request.",
         },
         {
           role: "assistant",
-          content: `The current code is: \n\`\`\`html\n${html}\n\`\`\` ${selectedElementHtml
-            ? `\n\nYou have to update ONLY the following element, NOTHING ELSE: \n\n\`\`\`html\n${selectedElementHtml}\n\`\`\``
-            : ""}
-          `,
+          content: `The current code is: \n\`\`\`html\n${html}\n\`\`\` ${
+            selectedElementHtml
+              ? `\n\nYou have to update ONLY the following element, NOTHING ELSE: \n\n\`\`\`html\n${selectedElementHtml}\n\`\`\``
+              : ""
+          }`,
         },
-        {
-          role: "user",
-          content: prompt,
-        },
+        { role: "user", content: prompt },
       ],
     });
 
-    const chunk = response.choices[0]?.message?.content;
-    if (!chunk) {
+    const chunk = response.choices[0]?.message?.content || "";
+    if (!chunk.trim()) {
       return NextResponse.json(
-        { ok: false, message: "No content returned from the model" },
+        { ok: false, message: "Model returned empty response" },
         { status: 400 }
       );
     }
 
-    if (chunk) {
-      const updatedLines: number[][] = [];
-      let newHtml = html;
-      let position = 0;
-      let moreBlocks = true;
+    // aplica os blocos de modificação SEARCH_START...DIVIDER...REPLACE_END
+    let newHtml = html;
+    const updatedLines: number[][] = [];
+    let position = 0;
+    let moreBlocks = true;
 
-      while (moreBlocks) {
-        const searchStartIndex = chunk.indexOf(SEARCH_START, position);
-        if (searchStartIndex === -1) {
-          moreBlocks = false;
-          continue;
-        }
-
-        const dividerIndex = chunk.indexOf(DIVIDER, searchStartIndex);
-        if (dividerIndex === -1) {
-          moreBlocks = false;
-          continue;
-        }
-
-        const replaceEndIndex = chunk.indexOf(REPLACE_END, dividerIndex);
-        if (replaceEndIndex === -1) {
-          moreBlocks = false;
-          continue;
-        }
-
-        const searchBlock = chunk.substring(
-          searchStartIndex + SEARCH_START.length,
-          dividerIndex
-        );
-        const replaceBlock = chunk.substring(
-          dividerIndex + DIVIDER.length,
-          replaceEndIndex
-        );
-
-        if (searchBlock.trim() === "") {
-          newHtml = `${replaceBlock}\n${newHtml}`;
-          updatedLines.push([1, replaceBlock.split("\n").length]);
-        } else {
-          const blockPosition = newHtml.indexOf(searchBlock);
-          if (blockPosition !== -1) {
-            const beforeText = newHtml.substring(0, blockPosition);
-            const startLineNumber = beforeText.split("\n").length;
-            const replaceLines = replaceBlock.split("\n").length;
-            const endLineNumber = startLineNumber + replaceLines - 1;
-
-            updatedLines.push([startLineNumber, endLineNumber]);
-            newHtml = newHtml.replace(searchBlock, replaceBlock);
-          }
-        }
-
-        position = replaceEndIndex + REPLACE_END.length;
+    while (moreBlocks) {
+      const searchStartIndex = chunk.indexOf(SEARCH_START, position);
+      if (searchStartIndex === -1) {
+        moreBlocks = false;
+        continue;
       }
 
-      return NextResponse.json({
-        ok: true,
-        html: newHtml,
-        updatedLines,
-      });
-    } else {
-      return NextResponse.json(
-        { ok: false, message: "No content returned from the model" },
-        { status: 400 }
+      const dividerIndex = chunk.indexOf(DIVIDER, searchStartIndex);
+      if (dividerIndex === -1) {
+        moreBlocks = false;
+        continue;
+      }
+
+      const replaceEndIndex = chunk.indexOf(REPLACE_END, dividerIndex);
+      if (replaceEndIndex === -1) {
+        moreBlocks = false;
+        continue;
+      }
+
+      const searchBlock = chunk.substring(
+        searchStartIndex + SEARCH_START.length,
+        dividerIndex
       );
+      const replaceBlock = chunk.substring(
+        dividerIndex + DIVIDER.length,
+        replaceEndIndex
+      );
+
+      if (searchBlock.trim() === "") {
+        newHtml = `${replaceBlock}\n${newHtml}`;
+        updatedLines.push([1, replaceBlock.split("\n").length]);
+      } else {
+        const blockPosition = newHtml.indexOf(searchBlock);
+        if (blockPosition !== -1) {
+          const beforeText = newHtml.substring(0, blockPosition);
+          const startLineNumber = beforeText.split("\n").length;
+          const replaceLines = replaceBlock.split("\n").length;
+          const endLineNumber = startLineNumber + replaceLines - 1;
+
+          updatedLines.push([startLineNumber, endLineNumber]);
+          newHtml = newHtml.replace(searchBlock, replaceBlock);
+        }
+      }
+
+      position = replaceEndIndex + REPLACE_END.length;
     }
+
+    return NextResponse.json({
+      ok: true,
+      html: newHtml,
+      updatedLines,
+    });
   } catch (error: any) {
     return NextResponse.json(
       {
